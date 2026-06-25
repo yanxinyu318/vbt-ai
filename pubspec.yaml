@@ -1,0 +1,44 @@
+name: vbt
+description: "Camera-only Velocity-Based Training app (like Vitruve) — Flutter + TFLite"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  flutter_riverpod: ^2.6.1
+  fl_chart: ^0.70.2
+
+  # Camera & image processing
+  camera: ^0.11.1
+  image: ^4.5.3
+
+  # ML
+  tflite_flutter: ^0.11.0
+
+  # Storage
+  shared_preferences: ^2.3.5
+  path_provider: ^2.1.5
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Utilities
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/tflite/
