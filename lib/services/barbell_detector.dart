@@ -1,3 +1,4 @@
+
 import 'package:vbt/domain/entities/barbell_position.dart';
 import 'package:vbt/ml/movenet_service.dart';
 import 'package:vbt/services/color_detector.dart';
@@ -11,7 +12,7 @@ class BarbellDetector {
   BarbellDetector({
     MoveNetService? movenet,
     ColorDetector? colorDetector,
-    double movenetThreshold = 0.3,
+    double movenetThreshold = 0.1,
   })  : _movenet = movenet ?? MoveNetService(),
         _colorDetector = colorDetector ?? ColorDetector(),
         _movenetThreshold = movenetThreshold;
@@ -35,7 +36,7 @@ class BarbellDetector {
     }
 
     final fallback = _colorDetector.detect(frame);
-    if (fallback != null && fallback.confidence >= 0.15) {
+    if (fallback != null && fallback.confidence >= 0.05) {
       return BarbellPosition(
         x: fallback.x,
         y: fallback.y,

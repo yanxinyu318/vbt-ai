@@ -130,12 +130,10 @@ class VelocityCalculator {
   }
 
   double instantVelocity(BarbellPosition p1, BarbellPosition p2) {
-    final dx = p2.x - p1.x;
     final dy = p2.y - p1.y;
-    final dispPx = sqrt(dx * dx + dy * dy);
     final dt = _dtSec(p1.timestamp, p2.timestamp);
     if (dt <= 0) return 0;
-    return (dispPx / dt) / pixelsPerMeter;
+    return (dy / dt) / pixelsPerMeter;
   }
 
   double _dtSec(DateTime a, DateTime b) =>

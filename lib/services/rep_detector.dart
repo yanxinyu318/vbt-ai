@@ -1,8 +1,9 @@
 import 'dart:collection';
+import 'package:flutter/foundation.dart';
 import 'package:vbt/domain/entities/barbell_position.dart';
 import 'package:vbt/services/position_tracker.dart';
 
-enum RepPhase { idle, descending, ascending, completed }
+enum RepPhase { idle, eccentric, concentric }
 
 class RepEvent {
   final BarbellPosition position;
@@ -43,21 +44,26 @@ class RepDetector {
   final int _windowSize;
   final double _velocityThreshold;
   final Duration _minRepDuration;
+  final double _minDisplacementPx;
 
   RepPhase _phase = RepPhase.idle;
   DateTime? _repStart;
   DateTime? _concentricStart;
   List<BarbellPosition>? _currentRep;
   final List<DetectedRep> _completedReps = [];
+  double _minY = double.infinity;
+  double _maxY = double.negativeInfinity;
 
   RepDetector({
-    int windowSize = 5,
-    double velocityThreshold = 0.15,
-    Duration minRepDuration = const Duration(milliseconds: 200),
+    int windowSize = 7,
+    double velocityThreshold = 0.08,
+    Duration minRepDuration = const Duration(milliseconds: 300),
+    double minDisplacementPx = 30,
   })  : _recent = Queue<SmoothedPosition>(),
         _windowSize = windowSize,
         _velocityThreshold = velocityThreshold,
-        _minRepDuration = minRepDuration;
+        _minRepDuration = minRepDuration,
+        _minDisplacementPx = minDisplacementPx;
 
   List<DetectedRep> get completedReps => List.unmodifiable(_completedReps);
   RepPhase get phase => _phase;
@@ -72,6 +78,16 @@ class RepDetector {
     }
 
     final velAvg = _averageVelocity();
+    final event = _processPhase(pos, velAvg);
+
+    if (event.type == RepEventType.repEnd) {
+      debugPrint('[REP] rep #${_completedReps.length} completed (${_completedReps.last.duration.inMilliseconds}ms)');
+    }
+
+    return event;
+  }
+
+  RepEvent _processPhase(SmoothedPosition pos, double velAvg) {
 
     switch (_phase) {
       case RepPhase.idle:
@@ -80,38 +96,29 @@ class RepDetector {
         }
         return _noEvent(pos);
 
-      case RepPhase.descending:
-        if (velAvg < -_velocityThreshold * 0.3) {
+      case RepPhase.eccentric:
+        _minY = _minY < pos.y ? _minY : pos.y;
+        _maxY = _maxY > pos.y ? _maxY : pos.y;
+        _currentRep?.add(BarbellPosition(
+          x: pos.x, y: pos.y,
+          confidence: pos.confidence, timestamp: pos.timestamp,
+        ));
+        if (velAvg < -_velocityThreshold) {
           _concentricStart = pos.timestamp;
-          _phase = RepPhase.ascending;
+          _phase = RepPhase.concentric;
           return _noEvent(pos);
         }
-        if (velAvg.abs() < _velocityThreshold * 0.2) {
-          return _endRep(pos);
-        }
-        _currentRep?.add(BarbellPosition(
-          x: pos.x,
-          y: pos.y,
-          confidence: pos.confidence,
-          timestamp: pos.timestamp,
-        ));
         return _noEvent(pos);
 
-      case RepPhase.ascending:
-        if (velAvg.abs() < _velocityThreshold * 0.2) {
-          return _endRep(pos);
-        }
+      case RepPhase.concentric:
+        _minY = _minY < pos.y ? _minY : pos.y;
+        _maxY = _maxY > pos.y ? _maxY : pos.y;
         _currentRep?.add(BarbellPosition(
-          x: pos.x,
-          y: pos.y,
-          confidence: pos.confidence,
-          timestamp: pos.timestamp,
+          x: pos.x, y: pos.y,
+          confidence: pos.confidence, timestamp: pos.timestamp,
         ));
-        return _noEvent(pos);
-
-      case RepPhase.completed:
-        if (velAvg.abs() < _velocityThreshold * 0.1) {
-          _phase = RepPhase.idle;
+        if (velAvg > _velocityThreshold * 0.3) {
+          return _endRep(pos);
         }
         return _noEvent(pos);
     }
@@ -120,15 +127,15 @@ class RepDetector {
   RepEvent _startRep(SmoothedPosition pos) {
     _repStart = pos.timestamp;
     _concentricStart = null;
+    _minY = pos.y;
+    _maxY = pos.y;
     _currentRep = [
       BarbellPosition(
-        x: pos.x,
-        y: pos.y,
-        confidence: pos.confidence,
-        timestamp: pos.timestamp,
+        x: pos.x, y: pos.y,
+        confidence: pos.confidence, timestamp: pos.timestamp,
       ),
     ];
-    _phase = RepPhase.descending;
+    _phase = RepPhase.eccentric;
     return RepEvent(position: _currentRep!.last, type: RepEventType.repStart);
   }
 
@@ -139,41 +146,43 @@ class RepDetector {
     }
 
     _currentRep!.add(BarbellPosition(
-      x: pos.x,
-      y: pos.y,
-      confidence: pos.confidence,
-      timestamp: pos.timestamp,
+      x: pos.x, y: pos.y,
+      confidence: pos.confidence, timestamp: pos.timestamp,
     ));
 
     final duration = pos.timestamp.difference(_repStart!);
-    if (duration >= _minRepDuration) {
+    final displacement = (_maxY - _minY).abs();
+
+    if (duration >= _minRepDuration && displacement >= _minDisplacementPx) {
       _completedReps.add(DetectedRep(
         positions: List.from(_currentRep!),
         startTime: _repStart!,
         endTime: pos.timestamp,
         concentricStartTime: _concentricStart,
       ));
-      _phase = RepPhase.completed;
       final event = RepEvent(position: _currentRep!.last, type: RepEventType.repEnd);
       _currentRep = null;
       _repStart = null;
       _concentricStart = null;
+      _minY = double.infinity;
+      _maxY = double.negativeInfinity;
+      _phase = RepPhase.idle;
       return event;
     }
 
     _currentRep = null;
     _repStart = null;
     _concentricStart = null;
+    _minY = double.infinity;
+    _maxY = double.negativeInfinity;
     _phase = RepPhase.idle;
     return _noEvent(pos);
   }
 
   RepEvent _noEvent(SmoothedPosition pos) {
     return RepEvent(position: BarbellPosition(
-      x: pos.x,
-      y: pos.y,
-      confidence: pos.confidence,
-      timestamp: pos.timestamp,
+      x: pos.x, y: pos.y,
+      confidence: pos.confidence, timestamp: pos.timestamp,
     ), type: RepEventType.none);
   }
 
@@ -193,5 +202,7 @@ class RepDetector {
     _concentricStart = null;
     _currentRep = null;
     _completedReps.clear();
+    _minY = double.infinity;
+    _maxY = double.negativeInfinity;
   }
 }

@@ -28,6 +28,9 @@ class PositionTracker {
 
   SmoothedPosition? _lastSmoothed;
   double _currentVelocity = 0;
+  static const double _maxJumpPx = 120.0;
+  int _outlierCount = 0;
+  static const int _maxOutliers = 10;
 
   PositionTracker({
     KalmanFilter2D? kalman,
@@ -49,6 +52,31 @@ class PositionTracker {
         : 0.016;
 
     _lastTimestamp = raw.timestamp;
+
+    if (_buffer.isNotEmpty) {
+      final last = _buffer.last;
+      final dx = raw.x - last.x;
+      final dy = raw.y - last.y;
+      final jump = (dx * dx + dy * dy);
+      if (jump > _maxJumpPx * _maxJumpPx) {
+        _outlierCount++;
+        if (_outlierCount > _maxOutliers) {
+          _kalman.reset();
+          _buffer.clear();
+          _currentVelocity = 0;
+          _outlierCount = 0;
+        }
+        final predicted = _kalman.filter(raw.x, raw.y, dt);
+        return SmoothedPosition(
+          x: predicted.x,
+          y: predicted.y,
+          velocity: 0,
+          confidence: raw.confidence,
+          timestamp: raw.timestamp,
+        );
+      }
+      _outlierCount = 0;
+    }
 
     final filtered = _kalman.filter(raw.x, raw.y, dt);
 

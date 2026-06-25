@@ -39,7 +39,6 @@ class ColorDetector {
           const ColorDetectorConfig(hueLow: 0.55, hueHigh: 0.7, satMin: 0.4, valMin: 0.3),
           const ColorDetectorConfig(hueLow: 0.13, hueHigh: 0.2, satMin: 0.4, valMin: 0.3),
           const ColorDetectorConfig(hueLow: 0.25, hueHigh: 0.4, satMin: 0.3, valMin: 0.3),
-          const ColorDetectorConfig(hueLow: 0.0, hueHigh: 1.0, satMin: 0.0, valMin: 0.0, valMax: 0.15),
         ];
 
   ColorDetectorResult? detect(ProcessedFrame frame) {
@@ -51,13 +50,13 @@ class ColorDetector {
     int width,
     int height,
   ) {
-    final halfW = width ~/ 2;
-    final halfH = height ~/ 2;
+    final intYStart = height ~/ 4;
+    final intYEnd = height * 3 ~/ 4;
     double sumX = 0, sumY = 0;
     int count = 0;
 
-    for (int y = 0; y < height; y += 3) {
-      for (int x = 0; x < width; x += 3) {
+    for (int y = intYStart; y < intYEnd; y += 2) {
+      for (int x = 0; x < width; x += 2) {
         final idx = (y * width + x) * 3;
         final r = rgbBytes[idx] / 255.0;
         final g = rgbBytes[idx + 1] / 255.0;
@@ -83,12 +82,14 @@ class ColorDetector {
       }
     }
 
-    if (count < 20) return null;
+    if (count < 10) return null;
 
     final cx = sumX / count;
     final cy = sumY / count;
-    final spread = count / ((halfW ~/ 3) * (halfH ~/ 3));
-    final confidence = (spread).clamp(0.0, 1.0);
+
+    final totalSampled = ((width ~/ 2) * ((intYEnd - intYStart) ~/ 2));
+    final density = count / totalSampled;
+    final confidence = density.clamp(0.0, 1.0);
 
     return ColorDetectorResult(
       x: cx,

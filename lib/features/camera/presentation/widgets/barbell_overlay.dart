@@ -16,10 +16,22 @@ class BarbellOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (position == null) return;
 
-    final scaleX = size.width / frameWidth;
-    final scaleY = size.height / frameHeight;
-    final px = position!.x * scaleX;
-    final py = position!.y * scaleY;
+    final frameAspect = frameWidth / frameHeight;
+    final screenAspect = size.width / size.height;
+
+    double scale, offsetX = 0, offsetY = 0;
+    if (screenAspect > frameAspect) {
+      scale = size.width / frameWidth;
+      final renderedH = frameHeight * scale;
+      offsetY = (size.height - renderedH) / 2;
+    } else {
+      scale = size.height / frameHeight;
+      final renderedW = frameWidth * scale;
+      offsetX = (size.width - renderedW) / 2;
+    }
+
+    final px = position!.x * scale + offsetX;
+    final py = position!.y * scale + offsetY;
 
     final dotPaint = Paint()
       ..color = Colors.cyan

@@ -152,6 +152,9 @@ class SessionNotifier extends ChangeNotifier {
       final smoothed = _tracker!.update(position);
       final repEvent = _repDetector.process(smoothed);
 
+      if (repEvent.type == RepEventType.repStart) {
+        debugPrint('[REP] started');
+      }
       if (repEvent.type == RepEventType.repEnd) {
         final repNumber = _state.repCount + 1;
         final repPositions = _repDetector.currentRepPositions;
@@ -170,6 +173,7 @@ class SessionNotifier extends ChangeNotifier {
             repCount: repNumber,
             completedReps: [..._state.completedReps, metrics],
           );
+          debugPrint('[REP] #$repNumber done v=${metrics.meanVelocity.toStringAsFixed(2)}');
         }
       }
 
@@ -186,10 +190,15 @@ class SessionNotifier extends ChangeNotifier {
     _frameSub?.cancel();
     _sessionTimer.stop();
 
-    if (_tracker != null && _metrics != null) {
-      _metrics!.calculateRep(
+    if (_tracker != null && _metrics != null && _tracker!.positionBuffer.isNotEmpty) {
+      final repNumber = _state.repCount + 1;
+      final metrics = _metrics!.calculateRep(
         _tracker!.positionBuffer,
-        _state.repCount + 1,
+        repNumber,
+      );
+      _state = _state.copyWith(
+        repCount: repNumber,
+        completedReps: [..._state.completedReps, metrics],
       );
     }
 

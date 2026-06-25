@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vbt/features/camera/presentation/widgets/barbell_overlay.dart';
+import 'package:vbt/features/session/presentation/session_screen.dart';
 import 'package:vbt/providers/session_provider.dart';
 
 class CameraScreen extends ConsumerStatefulWidget {
@@ -154,7 +155,16 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 20)),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
+                  onPressed: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => SessionScreen(
+                          reps: state.completedReps,
+                          durationSec: state.sessionDurationSec,
+                        ),
+                      ),
+                    );
+                  },
                   child: const Text('View Summary'),
                 ),
               ],

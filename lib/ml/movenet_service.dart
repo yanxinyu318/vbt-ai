@@ -1,10 +1,12 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class MoveNetService {
   Interpreter? _interpreter;
   bool _initialized = false;
+  TensorType _inputType = TensorType.float32;
+  TensorType _outputType = TensorType.float32;
 
   static const int _inputSize = 192;
 
@@ -21,6 +23,8 @@ class MoveNetService {
       'assets/tflite/movenet_lightning.tflite',
       options: options,
     );
+    _inputType = _interpreter!.getInputTensor(0).type;
+    _outputType = _interpreter!.getOutputTensor(0).type;
     _initialized = true;
   }
 
@@ -29,20 +33,24 @@ class MoveNetService {
     int frameWidth,
     int frameHeight,
   ) {
-    if (!_initialized || _interpreter == null) return null;
+    if (!_initialized || _interpreter == null) {
+      return null;
+    }
 
     try {
       final inputTensor = _interpreter!.getInputTensor(0);
       final inputShape = inputTensor.shape;
 
-      final input = _preprocess(rgbBytes, frameWidth, frameHeight, inputShape);
+      final input = _preprocess(rgbBytes, frameWidth, frameHeight, inputShape, _inputType);
 
       final outputShape = _interpreter!.getOutputTensor(0).shape;
-      final output = _allocateOutput(outputShape);
+      final output = _allocateOutput(outputShape, _outputType);
       _interpreter!.run(input, output);
 
-      return _extractBarbellPosition(output, frameWidth, frameHeight);
-    } catch (_) {
+      final result = _extractBarbellPosition(output, frameWidth, frameHeight, _outputType);
+      return result;
+    } catch (e) {
+      debugPrint('[MOV] ERROR: $e');
       return null;
     }
   }
@@ -52,6 +60,7 @@ class MoveNetService {
     int frameWidth,
     int frameHeight,
     List<int> inputShape,
+    TensorType inputType,
   ) {
     final srcImage = img.Image.fromBytes(
       width: frameWidth,
@@ -67,9 +76,22 @@ class MoveNetService {
 
     final expectedChannels = inputShape.length == 4 ? inputShape[3] : 3;
 
+    if (inputType == TensorType.uint8 || inputType == TensorType.int8) {
+      final flat = Uint8List(_inputSize * _inputSize * expectedChannels);
+      int idx = 0;
+      for (int y = 0; y < _inputSize; y++) {
+        for (int x = 0; x < _inputSize; x++) {
+          final p = resized.getPixel(x, y);
+          flat[idx++] = p.r.toInt();
+          if (expectedChannels > 1) flat[idx++] = p.g.toInt();
+          if (expectedChannels > 2) flat[idx++] = p.b.toInt();
+        }
+      }
+      return flat.reshape(inputShape);
+    }
+
     final flat = Float32List(_inputSize * _inputSize * expectedChannels);
     int idx = 0;
-
     for (int y = 0; y < _inputSize; y++) {
       for (int x = 0; x < _inputSize; x++) {
         final p = resized.getPixel(x, y);
@@ -78,25 +100,34 @@ class MoveNetService {
         if (expectedChannels > 2) flat[idx++] = (p.b / 127.5) - 1.0;
       }
     }
-
     return flat.reshape(inputShape);
   }
 
-  Object _allocateOutput(List<int> shape) {
+  Object _allocateOutput(List<int> shape, TensorType outputType) {
     final size = shape.fold(1, (a, b) => a * b);
-    return Float64List(size).reshape(shape);
+    if (outputType == TensorType.uint8 || outputType == TensorType.int8) {
+      return Uint8List(size).reshape(shape);
+    }
+    return Float32List(size).reshape(shape);
   }
 
   ({double x, double y, double confidence})? _extractBarbellPosition(
     Object output,
     int frameWidth,
     int frameHeight,
+    TensorType outputType,
   ) {
-    final outputList = output as List<List<List<List<double>>>>;
-    final keypoints = outputList[0][0];
+    final batch = (output as List)[0] as List;
+    final person = batch[0] as List;
 
-    final lWrist = (keypoints[leftWristIdx][1], keypoints[leftWristIdx][0], keypoints[leftWristIdx][2]);
-    final rWrist = (keypoints[rightWristIdx][1], keypoints[rightWristIdx][0], keypoints[rightWristIdx][2]);
+    double toDouble(dynamic v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      return 0.0;
+    }
+
+    final lWrist = (toDouble(person[leftWristIdx][1]), toDouble(person[leftWristIdx][0]), toDouble(person[leftWristIdx][2]));
+    final rWrist = (toDouble(person[rightWristIdx][1]), toDouble(person[rightWristIdx][0]), toDouble(person[rightWristIdx][2]));
 
     final lConf = lWrist.$3;
     final rConf = rWrist.$3;
@@ -107,7 +138,7 @@ class MoveNetService {
       x = (lWrist.$1 + rWrist.$1) / 2.0;
       y = (lWrist.$2 + rWrist.$2) / 2.0;
       confidence = (lConf + rConf) / 2.0;
-    } else if (lConf > rConf) {
+    } else if (lConf > rConf && lConf > 0.3) {
       x = lWrist.$1;
       y = lWrist.$2;
       confidence = lConf;
@@ -118,6 +149,8 @@ class MoveNetService {
     } else {
       return null;
     }
+
+    if (y > 0.75) return null;
 
     return (
       x: x * frameWidth,
@@ -135,23 +168,15 @@ class MoveNetService {
 
     try {
       final inputShape = _interpreter!.getInputTensor(0).shape;
-      final input = _preprocess(rgbBytes, frameWidth, frameHeight, inputShape);
+      final input = _preprocess(rgbBytes, frameWidth, frameHeight, inputShape, _inputType);
 
       final outputShape = _interpreter!.getOutputTensor(0).shape;
-      final output = _allocateOutput(outputShape);
+      final output = _allocateOutput(outputShape, _outputType);
       _interpreter!.run(input, output);
 
-      final outputList = output as List<List<List<List<double>>>>;
-      final keypoints = outputList[0][0];
-
-      return [
-        keypoints[leftWristIdx][1] * frameWidth,
-        keypoints[leftWristIdx][0] * frameHeight,
-        keypoints[leftWristIdx][2],
-        keypoints[rightWristIdx][1] * frameWidth,
-        keypoints[rightWristIdx][0] * frameHeight,
-        keypoints[rightWristIdx][2],
-      ];
+      final result = _extractBarbellPosition(output, frameWidth, frameHeight, _outputType);
+      if (result == null) return null;
+      return [result.x, result.y, result.confidence, result.x, result.y, result.confidence];
     } catch (_) {
       return null;
     }
