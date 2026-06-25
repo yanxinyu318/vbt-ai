@@ -28,7 +28,7 @@ class PositionTracker {
 
   SmoothedPosition? _lastSmoothed;
   double _currentVelocity = 0;
-  static const double _maxJumpPx = 120.0;
+  static const double _maxJumpNorm = 0.1;
   int _outlierCount = 0;
   static const int _maxOutliers = 10;
 
@@ -58,7 +58,7 @@ class PositionTracker {
       final dx = raw.x - last.x;
       final dy = raw.y - last.y;
       final jump = (dx * dx + dy * dy);
-      if (jump > _maxJumpPx * _maxJumpPx) {
+      if (jump > _maxJumpNorm * _maxJumpNorm) {
         _outlierCount++;
         if (_outlierCount > _maxOutliers) {
           _kalman.reset();

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vbt/features/camera/presentation/widgets/barbell_overlay.dart';
+import 'package:vbt/features/camera/presentation/widgets/pose_overlay.dart';
 import 'package:vbt/features/session/presentation/session_screen.dart';
 import 'package:vbt/providers/session_provider.dart';
 
@@ -88,6 +89,15 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final frameW = controller.value.isRecordingVideo ? previewSize.width : previewSize.height;
     final frameH = controller.value.isRecordingVideo ? previewSize.height : previewSize.width;
 
+    if (state.status == SessionStatus.ready) {
+      session.setFrameSize(
+        MediaQuery.of(context).size.width,
+        MediaQuery.of(context).size.height,
+        previewSize.height,
+        previewSize.width,
+      );
+    }
+
     return Stack(
       children: [
         ClipRect(
@@ -105,33 +115,79 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
           ),
         ),
         if (state.status == SessionStatus.ready)
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Ready', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () => session.startSession(),
-                  icon: const Icon(Icons.fitness_center),
-                  label: const Text('Start Session', style: TextStyle(fontSize: 16)),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+          Positioned.fill(
+            child: GestureDetector(
+              onTapDown: (details) {
+                session.setCalibrationPoint(details.localPosition);
+              },
+              child: CustomPaint(
+                painter: BarbellOverlayPainter(
+                  pointA: state.pointA,
+                  pointB: state.pointB,
+                  frameWidth: frameW,
+                  frameHeight: frameH,
                 ),
-              ],
+              ),
+            ),
+          ),
+        if (state.status == SessionStatus.ready)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            right: 16,
+            child: _CalibrationInstruction(
+              pointA: state.pointA,
+              pointB: state.pointB,
+            ),
+          ),
+        if (state.status == SessionStatus.ready && state.hasBothPoints)
+          Positioned(
+            bottom: 48,
+            left: 32,
+            right: 32,
+            child: FilledButton.icon(
+              onPressed: () => session.startSession(),
+              icon: const Icon(Icons.fitness_center),
+              label: const Text('Start Session', style: TextStyle(fontSize: 16)),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ),
+        if (state.status == SessionStatus.ready && !state.hasBothPoints)
+          Positioned(
+            bottom: 48,
+            left: 32,
+            right: 32,
+            child: TextButton(
+              onPressed: () => session.clearCalibration(),
+              child: const Text('Clear Points', style: TextStyle(color: Colors.white54)),
             ),
           ),
         if (state.status == SessionStatus.recording) ...[
+          if (state.poseResult != null)
+            CustomPaint(
+              size: Size.infinite,
+              painter: PoseOverlayPainter(
+                poseResult: state.poseResult,
+                angles: state.jointAngles,
+                velocities: state.angularVelocities,
+                frameWidth: frameW,
+                frameHeight: frameH,
+              ),
+            ),
           CustomPaint(
             size: Size.infinite,
             painter: BarbellOverlayPainter(
               position: state.barbellPosition,
               frameWidth: frameW,
               frameHeight: frameH,
+              showRoi: true,
+              pointA: state.pointA,
+              pointB: state.pointB,
             ),
           ),
           Padding(
@@ -194,6 +250,58 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('End'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalibrationInstruction extends StatelessWidget {
+  final Offset? pointA;
+  final Offset? pointB;
+
+  const _CalibrationInstruction({this.pointA, this.pointB});
+
+  @override
+  Widget build(BuildContext context) {
+    String text;
+    if (pointA == null) {
+      text = 'Tap the LEFT end of the barbell';
+    } else if (pointB == null) {
+      text = 'Tap the RIGHT end of the barbell';
+    } else {
+      text = 'Ready to start!';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            pointA == null
+                ? Icons.touch_app
+                : pointB == null
+                    ? Icons.touch_app
+                    : Icons.check_circle,
+            color: pointB != null ? Colors.green : Colors.cyan,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: pointB != null ? Colors.green : Colors.white,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),

@@ -1,16 +1,20 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vbt/domain/entities/barbell_position.dart';
 import 'package:vbt/domain/entities/rep_metrics.dart';
-import 'package:vbt/services/barbell_detector.dart';
+import 'package:vbt/services/angle_calculator.dart';
+import 'package:vbt/services/angular_velocity_engine.dart';
 import 'package:vbt/services/calibration_service.dart';
 import 'package:vbt/services/camera_service.dart';
 import 'package:vbt/services/frame_skip_strategy.dart';
 import 'package:vbt/services/metrics_calculator.dart';
 import 'package:vbt/services/position_tracker.dart';
+import 'package:vbt/services/pose_service.dart';
 import 'package:vbt/services/processed_frame.dart';
 import 'package:vbt/services/rep_detector.dart';
+import 'package:vbt/services/tracking_fusion.dart';
 
 enum SessionStatus { idle, initializing, ready, recording, finished, error }
 
@@ -24,6 +28,12 @@ class SessionState {
   final double sessionDurationSec;
   final bool isCalibrated;
   final PerformanceMode performanceMode;
+  final Offset? pointA;
+  final Offset? pointB;
+  final PoseResult? poseResult;
+  final Map<String, JointAngle>? jointAngles;
+  final Map<String, AngularVelocityResult>? angularVelocities;
+  final String exerciseType;
 
   const SessionState({
     this.status = SessionStatus.idle,
@@ -35,7 +45,23 @@ class SessionState {
     this.sessionDurationSec = 0,
     this.isCalibrated = false,
     this.performanceMode = PerformanceMode.balanced,
+    this.pointA,
+    this.pointB,
+    this.poseResult,
+    this.jointAngles,
+    this.angularVelocities,
+    this.exerciseType = 'squat',
   });
+
+  bool get hasBothPoints => pointA != null && pointB != null;
+
+  Offset? get referenceCenter {
+    if (pointA == null || pointB == null) return null;
+    return Offset(
+      (pointA!.dx + pointB!.dx) / 2,
+      (pointA!.dy + pointB!.dy) / 2,
+    );
+  }
 
   SessionState copyWith({
     SessionStatus? status,
@@ -47,6 +73,12 @@ class SessionState {
     double? sessionDurationSec,
     bool? isCalibrated,
     PerformanceMode? performanceMode,
+    Offset? pointA,
+    Offset? pointB,
+    PoseResult? poseResult,
+    Map<String, JointAngle>? jointAngles,
+    Map<String, AngularVelocityResult>? angularVelocities,
+    String? exerciseType,
   }) {
     return SessionState(
       status: status ?? this.status,
@@ -58,33 +90,84 @@ class SessionState {
       sessionDurationSec: sessionDurationSec ?? this.sessionDurationSec,
       isCalibrated: isCalibrated ?? this.isCalibrated,
       performanceMode: performanceMode ?? this.performanceMode,
+      pointA: pointA ?? this.pointA,
+      pointB: pointB ?? this.pointB,
+      poseResult: poseResult ?? this.poseResult,
+      jointAngles: jointAngles ?? this.jointAngles,
+      angularVelocities: angularVelocities ?? this.angularVelocities,
+      exerciseType: exerciseType ?? this.exerciseType,
     );
   }
 }
 
 class SessionNotifier extends ChangeNotifier {
   final CameraService _camera;
-  final BarbellDetector _detector;
+  final TrackingFusion _fusion;
   final CalibrationService _calibration;
   final RepDetector _repDetector;
+  final PoseService _poseService;
+  final AngularVelocityEngine _angularVelEngine;
 
   PositionTracker? _tracker;
   MetricsCalculator? _metrics;
   StreamSubscription<ProcessedFrame>? _frameSub;
   final Stopwatch _sessionTimer = Stopwatch();
+  int _poseFrameCounter = 0;
+  static const int _poseFrameSkip = 10;
+  bool _poseProcessing = false;
 
   SessionNotifier({
     required CameraService camera,
-    required BarbellDetector detector,
+    required TrackingFusion fusion,
     required CalibrationService calibration,
     RepDetector? repDetector,
+    PoseService? poseService,
+    AngularVelocityEngine? angularVelEngine,
   })  : _camera = camera,
-        _detector = detector,
+        _fusion = fusion,
         _calibration = calibration,
-        _repDetector = repDetector ?? RepDetector();
+        _repDetector = repDetector ?? RepDetector(),
+        _poseService = poseService ?? PoseService(),
+        _angularVelEngine = angularVelEngine ?? AngularVelocityEngine();
 
   SessionState _state = const SessionState();
   SessionState get state => _state;
+
+  double _frameWidth = 720;
+  double _frameHeight = 1280;
+  double _cameraFrameWidth = 720;
+  double _cameraFrameHeight = 1280;
+
+  void setFrameSize(double screenWidth, double screenHeight, double cameraFrameWidth, double cameraFrameHeight) {
+    _frameWidth = screenWidth;
+    _frameHeight = screenHeight;
+    _cameraFrameWidth = cameraFrameWidth;
+    _cameraFrameHeight = cameraFrameHeight;
+  }
+
+  void setCalibrationPoint(Offset screenPoint) {
+    if (_state.status != SessionStatus.ready) return;
+
+    if (_state.pointA == null) {
+      _state = _state.copyWith(pointA: screenPoint);
+    } else if (_state.pointB == null) {
+      _state = _state.copyWith(pointB: screenPoint);
+    }
+    notifyListeners();
+  }
+
+  void clearCalibration() {
+    _state = _state.copyWith(
+      pointA: null,
+      pointB: null,
+    );
+    notifyListeners();
+  }
+
+  void setExerciseType(String type) {
+    _state = _state.copyWith(exerciseType: type);
+    notifyListeners();
+  }
 
   Future<void> initialize() async {
     _state = _state.copyWith(status: SessionStatus.initializing);
@@ -93,6 +176,7 @@ class SessionNotifier extends ChangeNotifier {
     try {
       _repDetector.reset();
       _camera.skipStrategy.reset();
+      _angularVelEngine.reset();
 
       final cal = await _calibration.load();
       final ppm = cal?.pixelsPerMeter ?? 100;
@@ -101,7 +185,18 @@ class SessionNotifier extends ChangeNotifier {
       _metrics = MetricsCalculator(pixelsPerMeter: ppm);
 
       await _camera.initialize();
-      await _detector.movenet.initialize();
+
+      _fusion.movenet.initialize().then((_) {
+        debugPrint('[FUSE] MoveNet ready (optional sanity check)');
+      }).catchError((e) {
+        debugPrint('[FUSE] MoveNet init failed (non-fatal): $e');
+      });
+
+      _poseService.initialize().then((_) {
+        debugPrint('[POSE] PoseService ready');
+      }).catchError((e) {
+        debugPrint('[POSE] init failed (non-fatal): $e');
+      });
 
       _state = _state.copyWith(
         status: SessionStatus.ready,
@@ -119,9 +214,46 @@ class SessionNotifier extends ChangeNotifier {
 
   void startSession() {
     if (_state.status != SessionStatus.ready) return;
+    if (!_state.hasBothPoints) return;
 
     _tracker?.reset();
+    _angularVelEngine.reset();
     final repCount = _repDetector.completedReps.length;
+
+    if (_state.pointA != null && _state.pointB != null) {
+      final screenW = _frameWidth;
+      final screenH = _frameHeight;
+      final frameW = _cameraFrameWidth;
+      final frameH = _cameraFrameHeight;
+
+      final frameAspect = frameW / frameH;
+      final screenAspect = screenW / screenH;
+
+      double scale, offsetX = 0, offsetY = 0;
+      if (screenAspect > frameAspect) {
+        scale = screenW / frameW;
+        final renderedH = frameH * scale;
+        offsetY = (screenH - renderedH) / 2;
+      } else {
+        scale = screenH / frameH;
+        final renderedW = frameW * scale;
+        offsetX = (screenW - renderedW) / 2;
+      }
+
+      final pA = _state.pointA!;
+      final pB = _state.pointB!;
+
+      final ax = (pA.dx - offsetX) / scale;
+      final ay = (pA.dy - offsetY) / scale;
+      final bx = (pB.dx - offsetX) / scale;
+      final by = (pB.dy - offsetY) / scale;
+
+      final cx = (ax + bx) / 2;
+      final cy = (ay + by) / 2;
+
+      _fusion.initialize(cx, cy);
+      debugPrint('[FUSE] ROI init: center=(${cx.toStringAsFixed(1)},${cy.toStringAsFixed(1)})');
+    }
 
     _state = _state.copyWith(
       status: SessionStatus.recording,
@@ -146,49 +278,83 @@ class SessionNotifier extends ChangeNotifier {
     if (_state.status != SessionStatus.recording) return;
 
     try {
-      final position = _detector.detect(frame);
-      if (position == null) return;
+      final position = _fusion.process(frame);
+      if (position != null) {
+        final smoothed = _tracker!.update(position);
+        final repEvent = _repDetector.process(smoothed);
 
-      final smoothed = _tracker!.update(position);
-      final repEvent = _repDetector.process(smoothed);
-
-      if (repEvent.type == RepEventType.repStart) {
-        debugPrint('[REP] started');
-      }
-      if (repEvent.type == RepEventType.repEnd) {
-        final repNumber = _state.repCount + 1;
-        final repPositions = _repDetector.currentRepPositions;
-        if (repPositions.isNotEmpty && _metrics != null) {
-          final dr = _repDetector.completedReps.isNotEmpty
-              ? _repDetector.completedReps.last
-              : null;
-          final metrics = _metrics!.calculateRep(
-            repPositions,
-            repNumber,
-            concentricTimeMs: dr?.concentricDuration.inMilliseconds ?? 0,
-            eccentricTimeMs: dr?.eccentricDuration.inMilliseconds ?? 0,
-            totalRepTimeMs: dr?.duration.inMilliseconds ?? 0,
-          );
-          _state = _state.copyWith(
-            repCount: repNumber,
-            completedReps: [..._state.completedReps, metrics],
-          );
-          debugPrint('[REP] #$repNumber done v=${metrics.meanVelocity.toStringAsFixed(2)}');
+        if (repEvent.type == RepEventType.repStart) {
+          debugPrint('[REP] started');
         }
+        if (repEvent.type == RepEventType.repEnd) {
+          final repNumber = _state.repCount + 1;
+          final repPositions = _repDetector.currentRepPositions;
+          if (repPositions.isNotEmpty && _metrics != null) {
+            final dr = _repDetector.completedReps.isNotEmpty
+                ? _repDetector.completedReps.last
+                : null;
+            final metrics = _metrics!.calculateRep(
+              repPositions,
+              repNumber,
+              concentricTimeMs: dr?.concentricDuration.inMilliseconds ?? 0,
+              eccentricTimeMs: dr?.eccentricDuration.inMilliseconds ?? 0,
+              totalRepTimeMs: dr?.duration.inMilliseconds ?? 0,
+            );
+            _state = _state.copyWith(
+              repCount: repNumber,
+              completedReps: [..._state.completedReps, metrics],
+            );
+            debugPrint('[REP] #$repNumber done v=${metrics.meanVelocity.toStringAsFixed(2)}');
+          }
+        }
+
+        _state = _state.copyWith(
+          currentVelocity: smoothed.velocity,
+          barbellPosition: position,
+          sessionDurationSec: _sessionTimer.elapsedMilliseconds / 1000,
+        );
       }
 
-      _state = _state.copyWith(
-        currentVelocity: smoothed.velocity,
-        barbellPosition: position,
-        sessionDurationSec: _sessionTimer.elapsedMilliseconds / 1000,
-      );
+      _poseFrameCounter++;
+      if (_poseFrameCounter >= _poseFrameSkip) {
+        _poseFrameCounter = 0;
+        _processPose(frame);
+      }
+
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> _processPose(ProcessedFrame frame) async {
+    if (!_poseService.isReady || _poseProcessing) return;
+
+    _poseProcessing = true;
+    try {
+      final poseResult = await _poseService.processFrame(frame);
+      if (poseResult == null) return;
+
+      final angles = AngleCalculator.calculateExerciseAngles(
+        poseResult,
+        _state.exerciseType,
+      );
+
+      final velocities = _angularVelEngine.processAll(angles);
+
+      _state = _state.copyWith(
+        poseResult: poseResult,
+        jointAngles: angles,
+        angularVelocities: velocities,
+      );
+    } finally {
+      _poseProcessing = false;
+    }
   }
 
   void stopSession() {
     _frameSub?.cancel();
     _sessionTimer.stop();
+    _fusion.reset();
+    _angularVelEngine.reset();
 
     if (_tracker != null && _metrics != null && _tracker!.positionBuffer.isNotEmpty) {
       final repNumber = _state.repCount + 1;
@@ -202,7 +368,12 @@ class SessionNotifier extends ChangeNotifier {
       );
     }
 
-    _state = _state.copyWith(status: SessionStatus.finished);
+    _state = _state.copyWith(
+      status: SessionStatus.finished,
+      poseResult: null,
+      jointAngles: null,
+      angularVelocities: null,
+    );
     notifyListeners();
   }
 
@@ -210,6 +381,8 @@ class SessionNotifier extends ChangeNotifier {
     _frameSub?.cancel();
     _sessionTimer.reset();
     _tracker?.reset();
+    _fusion.reset();
+    _angularVelEngine.reset();
     _state = SessionState(
       status: SessionStatus.ready,
       isCalibrated: _calibration.isCalibrated,
@@ -232,19 +405,20 @@ class SessionNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _frameSub?.cancel();
+    _poseService.close();
     super.dispose();
   }
 }
 
 final sessionProvider = ChangeNotifierProvider<SessionNotifier>((ref) {
   final camera = ref.read(cameraServiceProvider);
-  final detector = ref.read(barbellDetectorProvider);
+  final fusion = ref.read(trackingFusionProvider);
   final cal = ref.read(calibrationServiceProvider);
-  return SessionNotifier(camera: camera, detector: detector, calibration: cal);
+  return SessionNotifier(camera: camera, fusion: fusion, calibration: cal);
 });
 
 final cameraServiceProvider = Provider<CameraService>((ref) {
   return CameraService(skipStrategy: FrameSkipStrategy());
 });
-final barbellDetectorProvider = Provider<BarbellDetector>((ref) => BarbellDetector());
+final trackingFusionProvider = Provider<TrackingFusion>((ref) => TrackingFusion());
 final calibrationServiceProvider = Provider<CalibrationService>((ref) => CalibrationService());

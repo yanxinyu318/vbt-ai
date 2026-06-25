@@ -59,12 +59,20 @@ class _ResultMessage {
   final int width;
   final int height;
   final DateTime timestamp;
+  final Uint8List yBytes;
+  final Uint8List uvBytes;
+  final int yRowStride;
+  final int uvRowStride;
 
   _ResultMessage({
     required this.rgbBytes,
     required this.width,
     required this.height,
     required this.timestamp,
+    required this.yBytes,
+    required this.uvBytes,
+    required this.yRowStride,
+    required this.uvRowStride,
   });
 }
 
@@ -116,11 +124,37 @@ void _processFrames(SendPort sendPort) {
           );
         }
 
+        final yBytes = Uint8List.fromList(message.yBytes);
+        final halfW = message.width ~/ 2;
+        final halfH = message.height ~/ 2;
+        final uvSize = halfW * halfH * 2;
+        final uvBytes = Uint8List(uvSize);
+
+        if (message.planeCount == 3) {
+          for (int row = 0; row < halfH; row++) {
+            final uRowOff = message.uRow * row;
+            final vRowOff = message.vRow * row;
+            final outOff = row * halfW * 2;
+            for (int col = 0; col < halfW; col++) {
+              final vIdx = vRowOff + col * message.vPs;
+              final uIdx = uRowOff + col * message.uPs;
+              uvBytes[outOff + col * 2] = message.vBytes[vIdx];
+              uvBytes[outOff + col * 2 + 1] = message.uBytes[uIdx];
+            }
+          }
+        } else {
+          uvBytes.setRange(0, uvBytes.length.clamp(0, message.uBytes.length), message.uBytes);
+        }
+
         sendPort.send(_ResultMessage(
           rgbBytes: rgb,
           width: message.width,
           height: message.height,
           timestamp: message.timestamp,
+          yBytes: yBytes,
+          uvBytes: uvBytes,
+          yRowStride: message.yRow,
+          uvRowStride: message.uRow,
         ));
       } catch (e) {
         sendPort.send(_ErrorMessage('$e'));
@@ -234,6 +268,10 @@ class FrameProcessor {
             width: message.width,
             height: message.height,
             timestamp: message.timestamp,
+            yBytes: message.yBytes,
+            uvBytes: message.uvBytes,
+            yRowStride: message.yRowStride,
+            uvRowStride: message.uvRowStride,
           ));
         }
       }

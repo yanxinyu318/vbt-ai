@@ -1,23 +1,25 @@
-
+import 'package:flutter/foundation.dart';
 import 'package:vbt/domain/entities/barbell_position.dart';
 import 'package:vbt/ml/movenet_service.dart';
-import 'package:vbt/services/color_detector.dart';
 import 'package:vbt/services/processed_frame.dart';
 
 class BarbellDetector {
   final MoveNetService _movenet;
-  final ColorDetector _colorDetector;
   final double _movenetThreshold;
 
   BarbellDetector({
     MoveNetService? movenet,
-    ColorDetector? colorDetector,
-    double movenetThreshold = 0.1,
+    double movenetThreshold = 0.4,
   })  : _movenet = movenet ?? MoveNetService(),
-        _colorDetector = colorDetector ?? ColorDetector(),
         _movenetThreshold = movenetThreshold;
 
   MoveNetService get movenet => _movenet;
+
+  void setReference(double normX, double normY) {
+    debugPrint('[DET] ref set to (${normX.toStringAsFixed(3)}, ${normY.toStringAsFixed(3)})');
+  }
+
+  void clearReference() {}
 
   BarbellPosition? detect(ProcessedFrame frame) {
     final result = _movenet.detect(
@@ -26,25 +28,18 @@ class BarbellDetector {
       frame.height,
     );
 
-    if (result != null && result.confidence >= _movenetThreshold) {
-      return BarbellPosition(
-        x: result.x,
-        y: result.y,
-        confidence: result.confidence,
-        timestamp: frame.timestamp,
-      );
-    }
+    if (result == null || result.confidence < _movenetThreshold) return null;
 
-    final fallback = _colorDetector.detect(frame);
-    if (fallback != null && fallback.confidence >= 0.05) {
-      return BarbellPosition(
-        x: fallback.x,
-        y: fallback.y,
-        confidence: fallback.confidence * 0.5,
-        timestamp: frame.timestamp,
-      );
-    }
+    final portraitX = result.y;
+    final portraitY = 1.0 - result.x;
 
-    return null;
+    debugPrint('[DET] norm=(${portraitX.toStringAsFixed(3)}, ${portraitY.toStringAsFixed(3)}) c=${result.confidence.toStringAsFixed(2)}');
+
+    return BarbellPosition(
+      x: portraitX,
+      y: portraitY,
+      confidence: result.confidence,
+      timestamp: frame.timestamp,
+    );
   }
 }

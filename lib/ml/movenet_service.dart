@@ -134,15 +134,15 @@ class MoveNetService {
 
     double x, y, confidence;
 
-    if (lConf > 0.3 && rConf > 0.3) {
+    if (lConf > 0.4 && rConf > 0.4) {
       x = (lWrist.$1 + rWrist.$1) / 2.0;
       y = (lWrist.$2 + rWrist.$2) / 2.0;
       confidence = (lConf + rConf) / 2.0;
-    } else if (lConf > rConf && lConf > 0.3) {
+    } else if (lConf > rConf && lConf > 0.4) {
       x = lWrist.$1;
       y = lWrist.$2;
       confidence = lConf;
-    } else if (rConf > 0.3) {
+    } else if (rConf > 0.4) {
       x = rWrist.$1;
       y = rWrist.$2;
       confidence = rConf;
@@ -150,11 +150,9 @@ class MoveNetService {
       return null;
     }
 
-    if (y > 0.75) return null;
-
     return (
-      x: x * frameWidth,
-      y: y * frameHeight,
+      x: x,
+      y: y,
       confidence: confidence,
     );
   }
