@@ -4,14 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vbt/domain/entities/barbell_position.dart';
 import 'package:vbt/domain/entities/rep_metrics.dart';
-import 'package:vbt/services/angle_calculator.dart';
-import 'package:vbt/services/angular_velocity_engine.dart';
 import 'package:vbt/services/calibration_service.dart';
 import 'package:vbt/services/camera_service.dart';
 import 'package:vbt/services/frame_skip_strategy.dart';
 import 'package:vbt/services/metrics_calculator.dart';
 import 'package:vbt/services/position_tracker.dart';
-import 'package:vbt/services/pose_service.dart';
 import 'package:vbt/services/processed_frame.dart';
 import 'package:vbt/services/rep_detector.dart';
 import 'package:vbt/services/tracking_fusion.dart';
@@ -30,10 +27,6 @@ class SessionState {
   final PerformanceMode performanceMode;
   final Offset? pointA;
   final Offset? pointB;
-  final PoseResult? poseResult;
-  final Map<String, JointAngle>? jointAngles;
-  final Map<String, AngularVelocityResult>? angularVelocities;
-  final String exerciseType;
 
   const SessionState({
     this.status = SessionStatus.idle,
@@ -47,10 +40,6 @@ class SessionState {
     this.performanceMode = PerformanceMode.balanced,
     this.pointA,
     this.pointB,
-    this.poseResult,
-    this.jointAngles,
-    this.angularVelocities,
-    this.exerciseType = 'squat',
   });
 
   bool get hasBothPoints => pointA != null && pointB != null;
@@ -75,10 +64,6 @@ class SessionState {
     PerformanceMode? performanceMode,
     Offset? pointA,
     Offset? pointB,
-    PoseResult? poseResult,
-    Map<String, JointAngle>? jointAngles,
-    Map<String, AngularVelocityResult>? angularVelocities,
-    String? exerciseType,
   }) {
     return SessionState(
       status: status ?? this.status,
@@ -92,10 +77,6 @@ class SessionState {
       performanceMode: performanceMode ?? this.performanceMode,
       pointA: pointA ?? this.pointA,
       pointB: pointB ?? this.pointB,
-      poseResult: poseResult ?? this.poseResult,
-      jointAngles: jointAngles ?? this.jointAngles,
-      angularVelocities: angularVelocities ?? this.angularVelocities,
-      exerciseType: exerciseType ?? this.exerciseType,
     );
   }
 }
@@ -105,30 +86,21 @@ class SessionNotifier extends ChangeNotifier {
   final TrackingFusion _fusion;
   final CalibrationService _calibration;
   final RepDetector _repDetector;
-  final PoseService _poseService;
-  final AngularVelocityEngine _angularVelEngine;
 
   PositionTracker? _tracker;
   MetricsCalculator? _metrics;
   StreamSubscription<ProcessedFrame>? _frameSub;
   final Stopwatch _sessionTimer = Stopwatch();
-  int _poseFrameCounter = 0;
-  static const int _poseFrameSkip = 10;
-  bool _poseProcessing = false;
 
   SessionNotifier({
     required CameraService camera,
     required TrackingFusion fusion,
     required CalibrationService calibration,
     RepDetector? repDetector,
-    PoseService? poseService,
-    AngularVelocityEngine? angularVelEngine,
   })  : _camera = camera,
         _fusion = fusion,
         _calibration = calibration,
-        _repDetector = repDetector ?? RepDetector(),
-        _poseService = poseService ?? PoseService(),
-        _angularVelEngine = angularVelEngine ?? AngularVelocityEngine();
+        _repDetector = repDetector ?? RepDetector();
 
   SessionState _state = const SessionState();
   SessionState get state => _state;
@@ -164,11 +136,6 @@ class SessionNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setExerciseType(String type) {
-    _state = _state.copyWith(exerciseType: type);
-    notifyListeners();
-  }
-
   Future<void> initialize() async {
     _state = _state.copyWith(status: SessionStatus.initializing);
     notifyListeners();
@@ -176,7 +143,6 @@ class SessionNotifier extends ChangeNotifier {
     try {
       _repDetector.reset();
       _camera.skipStrategy.reset();
-      _angularVelEngine.reset();
 
       final cal = await _calibration.load();
       final ppm = cal?.pixelsPerMeter ?? 100;
@@ -190,12 +156,6 @@ class SessionNotifier extends ChangeNotifier {
         debugPrint('[FUSE] MoveNet ready (optional sanity check)');
       }).catchError((e) {
         debugPrint('[FUSE] MoveNet init failed (non-fatal): $e');
-      });
-
-      _poseService.initialize().then((_) {
-        debugPrint('[POSE] PoseService ready');
-      }).catchError((e) {
-        debugPrint('[POSE] init failed (non-fatal): $e');
       });
 
       _state = _state.copyWith(
@@ -217,7 +177,6 @@ class SessionNotifier extends ChangeNotifier {
     if (!_state.hasBothPoints) return;
 
     _tracker?.reset();
-    _angularVelEngine.reset();
     final repCount = _repDetector.completedReps.length;
 
     if (_state.pointA != null && _state.pointB != null) {
@@ -315,46 +274,14 @@ class SessionNotifier extends ChangeNotifier {
         );
       }
 
-      _poseFrameCounter++;
-      if (_poseFrameCounter >= _poseFrameSkip) {
-        _poseFrameCounter = 0;
-        _processPose(frame);
-      }
-
       notifyListeners();
     } catch (_) {}
-  }
-
-  Future<void> _processPose(ProcessedFrame frame) async {
-    if (!_poseService.isReady || _poseProcessing) return;
-
-    _poseProcessing = true;
-    try {
-      final poseResult = await _poseService.processFrame(frame);
-      if (poseResult == null) return;
-
-      final angles = AngleCalculator.calculateExerciseAngles(
-        poseResult,
-        _state.exerciseType,
-      );
-
-      final velocities = _angularVelEngine.processAll(angles);
-
-      _state = _state.copyWith(
-        poseResult: poseResult,
-        jointAngles: angles,
-        angularVelocities: velocities,
-      );
-    } finally {
-      _poseProcessing = false;
-    }
   }
 
   void stopSession() {
     _frameSub?.cancel();
     _sessionTimer.stop();
     _fusion.reset();
-    _angularVelEngine.reset();
 
     if (_tracker != null && _metrics != null && _tracker!.positionBuffer.isNotEmpty) {
       final repNumber = _state.repCount + 1;
@@ -370,9 +297,6 @@ class SessionNotifier extends ChangeNotifier {
 
     _state = _state.copyWith(
       status: SessionStatus.finished,
-      poseResult: null,
-      jointAngles: null,
-      angularVelocities: null,
     );
     notifyListeners();
   }
@@ -382,7 +306,6 @@ class SessionNotifier extends ChangeNotifier {
     _sessionTimer.reset();
     _tracker?.reset();
     _fusion.reset();
-    _angularVelEngine.reset();
     _state = SessionState(
       status: SessionStatus.ready,
       isCalibrated: _calibration.isCalibrated,
@@ -405,7 +328,6 @@ class SessionNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _frameSub?.cancel();
-    _poseService.close();
     super.dispose();
   }
 }

@@ -11,6 +11,10 @@ class PoseOverlayPainter extends CustomPainter {
   final Map<String, AngularVelocityResult>? velocities;
   final double frameWidth;
   final double frameHeight;
+  final double sensorWidth;
+  final double sensorHeight;
+  final int sensorOrientation;
+  final bool mirrorX;
   final bool showSkeleton;
   final bool showAngles;
   final bool showVelocity;
@@ -21,6 +25,10 @@ class PoseOverlayPainter extends CustomPainter {
     this.velocities,
     required this.frameWidth,
     required this.frameHeight,
+    this.sensorWidth = 640,
+    this.sensorHeight = 480,
+    this.sensorOrientation = 90,
+    this.mirrorX = false,
     this.showSkeleton = true,
     this.showAngles = true,
     this.showVelocity = true,
@@ -45,24 +53,62 @@ class PoseOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (poseResult == null) return;
 
-    final frameAspect = frameWidth / frameHeight;
+    final frameAspect = sensorWidth / sensorHeight;
     final screenAspect = size.width / size.height;
 
     double scale, offsetX = 0, offsetY = 0;
     if (screenAspect > frameAspect) {
-      scale = size.width / frameWidth;
-      final renderedH = frameHeight * scale;
+      scale = size.width / sensorWidth;
+      final renderedH = sensorHeight * scale;
       offsetY = (size.height - renderedH) / 2;
     } else {
-      scale = size.height / frameHeight;
-      final renderedW = frameWidth * scale;
+      scale = size.height / sensorHeight;
+      final renderedW = sensorWidth * scale;
       offsetX = (size.width - renderedW) / 2;
     }
 
     Offset toScreen(PoseLandmarkData lm) {
+      double px, py;
+      if (mirrorX) {
+        switch (sensorOrientation) {
+          case 270:
+            px = lm.y;
+            py = lm.x;
+            break;
+          case 180:
+            px = lm.x;
+            py = sensorHeight - lm.y;
+            break;
+          case 90:
+            px = sensorHeight - lm.y;
+            py = sensorWidth - lm.x;
+            break;
+          default:
+            px = sensorWidth - lm.x;
+            py = lm.y;
+        }
+      } else {
+        switch (sensorOrientation) {
+          case 90:
+            px = lm.y;
+            py = sensorWidth - lm.x;
+            break;
+          case 180:
+            px = sensorWidth - lm.x;
+            py = sensorHeight - lm.y;
+            break;
+          case 270:
+            px = sensorHeight - lm.y;
+            py = lm.x;
+            break;
+          default:
+            px = lm.x;
+            py = lm.y;
+        }
+      }
       return Offset(
-        lm.x * frameWidth * scale + offsetX,
-        lm.y * frameHeight * scale + offsetY,
+        px * scale + offsetX,
+        py * scale + offsetY,
       );
     }
 
@@ -71,7 +117,7 @@ class PoseOverlayPainter extends CustomPainter {
     }
 
     if (showAngles && angles != null) {
-      _drawAngles(canvas, toScreen);
+      _drawAngles(canvas, toScreen, size);
     }
   }
 
@@ -110,7 +156,7 @@ class PoseOverlayPainter extends CustomPainter {
     }
   }
 
-  void _drawAngles(Canvas canvas, Offset Function(PoseLandmarkData) toScreen) {
+  void _drawAngles(Canvas canvas, Offset Function(PoseLandmarkData) toScreen, Size size) {
     for (final entry in angles!.entries) {
       final angle = entry.value;
       final jointLm = poseResult![angle.joint];
@@ -125,12 +171,22 @@ class PoseOverlayPainter extends CustomPainter {
       final proxPos = toScreen(proxLm);
       final distPos = toScreen(distLm);
 
+      final color = _angleColor(angle.angleDeg);
+
+      final axisPaint = Paint()
+        ..color = color.withValues(alpha: 0.8)
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawLine(jointPos, proxPos, axisPaint);
+      canvas.drawLine(jointPos, distPos, axisPaint);
+
       _drawAngleArc(canvas, proxPos, jointPos, distPos, angle.angleDeg);
 
       final vel = velocities?[entry.key];
-      final label = '${angle.angleDeg.toStringAsFixed(0)}°';
+      final label = '${angle.angleDeg.toStringAsFixed(1)}°';
       final velLabel = vel != null
-          ? '${vel.smoothedVelocityDegPerSec.toStringAsFixed(0)}°/s'
+          ? '${vel.smoothedVelocityDegPerSec.toStringAsFixed(1)}°/s'
           : '';
 
       final textPainter = TextPainter(
@@ -138,20 +194,33 @@ class PoseOverlayPainter extends CustomPainter {
           text: '$label${velLabel.isNotEmpty ? '\n$velLabel' : ''}',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
             shadows: const [
-              Shadow(color: Colors.black, blurRadius: 4),
+              Shadow(color: Colors.black, blurRadius: 6),
             ],
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      textPainter.paint(
-        canvas,
-        Offset(jointPos.dx + 12, jointPos.dy - 20),
+      var labelX = jointPos.dx + 16;
+      var labelY = jointPos.dy - 24;
+      if (labelX + textPainter.width > size.width - 8) {
+        labelX = jointPos.dx - textPainter.width - 16;
+      }
+      if (labelY < 8) labelY = jointPos.dy + 16;
+      if (labelY + textPainter.height > size.height - 8) {
+        labelY = size.height - textPainter.height - 8;
+      }
+
+      final bgRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(labelX - 4, labelY - 2, textPainter.width + 8, textPainter.height + 4),
+        const Radius.circular(4),
       );
+      canvas.drawRRect(bgRect, Paint()..color = Colors.black54);
+
+      textPainter.paint(canvas, Offset(labelX, labelY));
     }
   }
 

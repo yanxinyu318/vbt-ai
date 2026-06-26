@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vbt/features/calibration/presentation/calibration_screen.dart';
 import 'package:vbt/features/camera/presentation/camera_screen.dart';
+import 'package:vbt/features/pose/presentation/pose_screen.dart';
 import 'package:vbt/features/session/presentation/session_screen.dart';
 import 'package:vbt/providers/session_provider.dart';
 import 'package:vbt/services/frame_skip_strategy.dart';
@@ -99,6 +100,27 @@ class HomeScreen extends ConsumerWidget {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: const BorderSide(color: Colors.white24),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const PoseScreen()),
+                        );
+                      },
+                      icon: const Icon(Icons.accessibility_new),
+                      label: const Text('Pose & Angles'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.cyan,
+                        side: const BorderSide(color: Colors.cyan),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),

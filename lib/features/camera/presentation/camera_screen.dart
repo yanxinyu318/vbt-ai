@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vbt/features/camera/presentation/widgets/barbell_overlay.dart';
-import 'package:vbt/features/camera/presentation/widgets/pose_overlay.dart';
 import 'package:vbt/features/session/presentation/session_screen.dart';
 import 'package:vbt/providers/session_provider.dart';
 
@@ -168,17 +167,6 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             ),
           ),
         if (state.status == SessionStatus.recording) ...[
-          if (state.poseResult != null)
-            CustomPaint(
-              size: Size.infinite,
-              painter: PoseOverlayPainter(
-                poseResult: state.poseResult,
-                angles: state.jointAngles,
-                velocities: state.angularVelocities,
-                frameWidth: frameW,
-                frameHeight: frameH,
-              ),
-            ),
           CustomPaint(
             size: Size.infinite,
             painter: BarbellOverlayPainter(
