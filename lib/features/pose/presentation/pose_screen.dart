@@ -35,10 +35,10 @@ class _PoseScreenState extends State<PoseScreen> {
 
   static const _exercises = ['squat', 'bench', 'deadlift', 'overhead'];
   static const _exerciseLabels = {
-    'squat': 'Squat',
-    'bench': 'Bench',
-    'deadlift': 'Deadlift',
-    'overhead': 'Overhead',
+    'squat': '深蹲',
+    'bench': '卧推',
+    'deadlift': '硬拉',
+    'overhead': '推举',
   };
 
   @override
@@ -52,7 +52,7 @@ class _PoseScreenState extends State<PoseScreen> {
     if (!granted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Camera permission denied')),
+          const SnackBar(content: Text('相机权限被拒绝')),
         );
       }
       return;
@@ -234,7 +234,7 @@ class _PoseScreenState extends State<PoseScreen> {
                 children: [
                   CircularProgressIndicator(color: Colors.cyan),
                   SizedBox(height: 16),
-                  Text('Initializing...', style: TextStyle(color: Colors.white70)),
+                  Text('正在初始化…', style: TextStyle(color: Colors.white70)),
                 ],
               ),
             )
@@ -354,6 +354,20 @@ class _PoseScreenState extends State<PoseScreen> {
     );
   }
 
+  static const _jointLabelsZh = {
+    'squat_left_knee': '左膝',
+    'squat_right_knee': '右膝',
+    'bench_left_elbow': '左肘',
+    'bench_right_elbow': '右肘',
+    'deadlift_left_hip': '左髋',
+    'deadlift_right_hip': '右髋',
+    'overhead_left_elbow': '左肘',
+    'overhead_right_elbow': '右肘',
+  };
+
+  static String _jointLabelZh(String key) =>
+      _jointLabelsZh[key] ?? key.replaceAll('_', ' ');
+
   Widget _buildVelocityPanel() {
     final entries = _velocities!.entries.toList();
     if (entries.isEmpty) return const SizedBox.shrink();
@@ -390,7 +404,7 @@ class _PoseScreenState extends State<PoseScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            primary.key.toUpperCase(),
+            _jointLabelZh(primary.key),
             style: const TextStyle(
               fontSize: 12,
               color: Colors.white54,
