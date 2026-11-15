@@ -42,7 +42,7 @@ class SessionScreen extends StatelessWidget {
               Expanded(
                 child: reps.isEmpty
                     ? const Center(
-                        child: Text('No reps recorded',
+                        child: Text('没有记录到次数',
                             style: TextStyle(color: Colors.white38)))
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -66,7 +66,7 @@ class SessionScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text('Done'),
+                    child: const Text('完成'),
                   ),
                 ),
               ),
@@ -111,20 +111,20 @@ class _SummaryHeader extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Text('Session Summary',
+          const Text('训练总结',
               style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _Metric(label: 'Reps', value: '$repCount'),
+              _Metric(label: '次数', value: '$repCount'),
               _Metric(
-                  label: 'Mean Vel',
+                  label: '平均速度',
                   value: meanVelocity.toStringAsFixed(2)),
               _Metric(
-                  label: 'Peak Vel',
+                  label: '峰值速度',
                   value: peakVelocity.toStringAsFixed(2)),
-              _Metric(label: 'Time', value: durStr),
+              _Metric(label: '时间', value: durStr),
             ],
           ),
         ],
