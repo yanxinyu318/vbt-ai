@@ -32,12 +32,12 @@ class CameraService {
     try {
       final granted = await Permission.camera.request().isGranted;
       if (!granted) {
-        throw Exception('Camera permission denied');
+        throw Exception('相机权限被拒绝');
       }
 
       _cameras = await availableCameras();
       if (_cameras!.isEmpty) {
-        throw Exception('No camera available on this device');
+        throw Exception('此设备没有可用相机');
       }
       final camera = _cameras!.firstWhere(
         (c) => c.lensDirection == direction,
