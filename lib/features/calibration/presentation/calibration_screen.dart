@@ -129,19 +129,19 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Calibrate')),
+      appBar: AppBar(title: const Text('标定')),
       body: _initializing
           ? const Center(child: CircularProgressIndicator())
           : _controller == null || !_controller!.value.isInitialized
-              ? const Center(child: Text('Camera not available'))
+              ? const Center(child: Text('相机不可用'))
               : _buildBody(),
     );
   }
 
   Widget _buildBody() {
     final label = _method == CalibrationMethod.plateDiameter
-        ? 'Tap two edges of a plate'
-        : 'Tap both ends of the barbell';
+        ? '点杠铃片的两边'
+        : '点杠铃的两端';
 
     return Column(
       children: [
@@ -194,9 +194,9 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          _methodChip(CalibrationMethod.plateDiameter, 'Plate (45cm)'),
+          _methodChip(CalibrationMethod.plateDiameter, '杠铃片（45cm）'),
           const SizedBox(width: 8),
-          _methodChip(CalibrationMethod.barbellLength, 'Barbell (220cm)'),
+          _methodChip(CalibrationMethod.barbellLength, '杠铃（220cm）'),
         ],
       ),
     );
@@ -229,7 +229,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
             child: Text(
               _pixelsPerMeter != null
                   ? '${_pixelsPerMeter!.toStringAsFixed(1)} px/m'
-                  : 'Tap two points',
+                  : '点两个点',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
@@ -242,11 +242,11 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                 _pixelDistance = null;
                 _pixelsPerMeter = null;
               }),
-              child: const Text('Reset'),
+              child: const Text('重置'),
             ),
           const SizedBox(width: 8),
           if (valid)
-            FilledButton(onPressed: _confirm, child: const Text('Confirm')),
+            FilledButton(onPressed: _confirm, child: const Text('确认')),
         ],
       ),
     );
