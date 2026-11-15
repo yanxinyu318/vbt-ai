@@ -205,7 +205,7 @@ class VelocityOverlay extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _Pill(label: 'REP $repCount', icon: Icons.repeat),
+            _Pill(label: '第 $repCount 次', icon: Icons.repeat),
             const SizedBox(width: 12),
             _Pill(
               label: _formatDuration(durationSec),
