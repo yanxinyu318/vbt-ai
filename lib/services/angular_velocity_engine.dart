@@ -96,14 +96,14 @@ class AngularVelocityEngine {
   String _jointLabel(JointAngle angle) {
     final jointName = angle.joint.name
         .replaceAll('PoseLandmarkType.', '')
-        .replaceAll('left_', 'L.')
-        .replaceAll('right_', 'R.')
-        .replaceAll('shoulder', 'SH')
-        .replaceAll('elbow', 'EL')
-        .replaceAll('wrist', 'WR')
-        .replaceAll('hip', 'HP')
-        .replaceAll('knee', 'KN')
-        .replaceAll('ankle', 'AN');
+        .replaceAll('left_', '左')
+        .replaceAll('right_', '右')
+        .replaceAll('shoulder', '肩')
+        .replaceAll('elbow', '肘')
+        .replaceAll('wrist', '腕')
+        .replaceAll('hip', '髋')
+        .replaceAll('knee', '膝')
+        .replaceAll('ankle', '踝');
     return jointName;
   }
 
