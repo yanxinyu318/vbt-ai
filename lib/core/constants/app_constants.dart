@@ -1,7 +1,7 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'VBT';
+  static const String appName = '杠铃速度追踪';
   static const double targetFps = 60.0;
   static const double minFps = 30.0;
   static const double standardBarbellLengthCm = 220.0;
