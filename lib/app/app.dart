@@ -8,7 +8,7 @@ class VBTApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VBT',
+      title: '杠铃速度追踪',
       debugShowCheckedModeBanner: false,
       theme: vbtTheme,
       home: const HomeScreen(),
