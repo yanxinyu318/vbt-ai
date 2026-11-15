@@ -41,7 +41,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             children: [
               CircularProgressIndicator(color: Colors.cyan),
               SizedBox(height: 16),
-              Text('Initializing camera...', style: TextStyle(color: Colors.white70)),
+              Text('正在打开相机…', style: TextStyle(color: Colors.white70)),
             ],
           ),
         );
@@ -54,13 +54,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               children: [
                 const Icon(Icons.error_outline, size: 48, color: Colors.red),
                 const SizedBox(height: 16),
-                Text(state.error ?? 'Unknown error',
+                Text(state.error ?? '未知错误',
                     style: const TextStyle(color: Colors.white70),
                     textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 FilledButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Go Back'),
+                  child: const Text('返回'),
                 ),
               ],
             ),
@@ -147,7 +147,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             child: FilledButton.icon(
               onPressed: () => session.startSession(),
               icon: const Icon(Icons.fitness_center),
-              label: const Text('Start Session', style: TextStyle(fontSize: 16)),
+              label: const Text('开始训练', style: TextStyle(fontSize: 16)),
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
@@ -163,7 +163,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             right: 32,
             child: TextButton(
               onPressed: () => session.clearCalibration(),
-              child: const Text('Clear Points', style: TextStyle(color: Colors.white54)),
+              child: const Text('清除标记点', style: TextStyle(color: Colors.white54)),
             ),
           ),
         if (state.status == SessionStatus.recording) ...[
@@ -195,7 +195,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               children: [
                 const Icon(Icons.check_circle, size: 64, color: Colors.green),
                 const SizedBox(height: 16),
-                Text('${state.repCount} reps completed',
+                Text('已完成 ${state.repCount} 次',
                     style: const TextStyle(color: Colors.white, fontSize: 20)),
                 const SizedBox(height: 24),
                 FilledButton(
@@ -209,7 +209,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                       ),
                     );
                   },
-                  child: const Text('View Summary'),
+                  child: const Text('查看总结'),
                 ),
               ],
             ),
@@ -223,13 +223,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
-        title: const Text('End Session?', style: TextStyle(color: Colors.white)),
-        content: const Text('All recorded reps will be saved.',
+        title: const Text('结束训练？', style: TextStyle(color: Colors.white)),
+        content: const Text('已记录的次数都会保存。',
             style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Continue'),
+            child: const Text('继续'),
           ),
           FilledButton(
             onPressed: () {
@@ -237,7 +237,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
               Navigator.of(ctx).pop();
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('End'),
+            child: const Text('结束'),
           ),
         ],
       ),
@@ -255,11 +255,11 @@ class _CalibrationInstruction extends StatelessWidget {
   Widget build(BuildContext context) {
     String text;
     if (pointA == null) {
-      text = 'Tap the LEFT end of the barbell';
+      text = '点杠铃左端';
     } else if (pointB == null) {
-      text = 'Tap the RIGHT end of the barbell';
+      text = '点杠铃右端';
     } else {
-      text = 'Ready to start!';
+      text = '可以开始了！';
     }
 
     return Container(
