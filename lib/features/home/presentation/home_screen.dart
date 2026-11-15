@@ -42,7 +42,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Velocity Based Training',
+                    '杠铃速度训练',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.white70,
                         ),
@@ -50,7 +50,7 @@ class HomeScreen extends ConsumerWidget {
                   const SizedBox(height: 48),
                   _StatusChip(
                     icon: session.state.isCalibrated ? Icons.check_circle : Icons.warning,
-                    label: session.state.isCalibrated ? 'Calibrated' : 'Not Calibrated',
+                    label: session.state.isCalibrated ? '已标定' : '未标定',
                     color: session.state.isCalibrated ? Colors.green : Colors.orange,
                   ),
                   const SizedBox(height: 16),
@@ -70,7 +70,7 @@ class HomeScreen extends ConsumerWidget {
                         );
                       },
                       icon: const Icon(Icons.play_arrow),
-                      label: const Text('New Session', style: TextStyle(fontSize: 18)),
+                      label: const Text('开始新训练', style: TextStyle(fontSize: 18)),
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.cyan,
                         foregroundColor: Colors.black,
@@ -96,7 +96,7 @@ class HomeScreen extends ConsumerWidget {
                         );
                       },
                       icon: const Icon(Icons.tune),
-                      label: const Text('Calibrate'),
+                      label: const Text('标定'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white70,
                         side: const BorderSide(color: Colors.white24),
@@ -117,7 +117,7 @@ class HomeScreen extends ConsumerWidget {
                         );
                       },
                       icon: const Icon(Icons.accessibility_new),
-                      label: const Text('Pose & Angles'),
+                      label: const Text('姿态与角度'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.cyan,
                         side: const BorderSide(color: Colors.cyan),
@@ -144,7 +144,7 @@ class HomeScreen extends ConsumerWidget {
                           );
                         },
                         icon: const Icon(Icons.history),
-                        label: const Text('Last Session'),
+                        label: const Text('上次训练'),
                       ),
                     ),
                   ],
@@ -177,9 +177,9 @@ class _PerformanceModeSelector extends StatelessWidget {
           if (m != modes.first) const SizedBox(width: 8),
           _ModeChip(
             label: switch (m) {
-              PerformanceMode.batterySaver => 'Battery',
-              PerformanceMode.balanced => 'Balanced',
-              PerformanceMode.performance => 'Performance',
+              PerformanceMode.batterySaver => '省电',
+              PerformanceMode.balanced => '均衡',
+              PerformanceMode.performance => '高性能',
             },
             icon: switch (m) {
               PerformanceMode.batterySaver => Icons.battery_std,
