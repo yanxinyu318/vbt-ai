@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>NSCameraUsageDescription</key>
-	<string>This app uses the camera to track barbell movement and measure lifting velocity.</string>
+	<string>本 App 使用相机追踪杠铃运动并测量举起速度。</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Vbt</string>
+	<string>杠铃速度追踪</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
