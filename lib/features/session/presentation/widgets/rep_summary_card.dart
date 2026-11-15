@@ -39,24 +39,24 @@ class RepSummaryCard extends StatelessWidget {
         ),
         title: Row(
           children: [
-            _Stat(label: 'Mean', value: '${rep.meanVelocity.toStringAsFixed(2)} m/s'),
+            _Stat(label: '平均', value: '${rep.meanVelocity.toStringAsFixed(2)} m/s'),
             const SizedBox(width: 16),
-            _Stat(label: 'Peak', value: '${rep.peakVelocity.toStringAsFixed(2)} m/s'),
+            _Stat(label: '峰值', value: '${rep.peakVelocity.toStringAsFixed(2)} m/s'),
           ],
         ),
         subtitle: Row(
           children: [
             if (rep.power > 0)
               _Stat(
-                  label: 'Power',
+                  label: '功率',
                   value: '${rep.power.toStringAsFixed(0)} W'),
             const SizedBox(width: 16),
             _Stat(
-                label: 'ROM',
+                label: '行程',
                 value: '${rep.rom.toStringAsFixed(2)} m'),
             const SizedBox(width: 16),
             _Stat(
-                label: 'Time',
+                label: '时间',
                 value: '${(rep.totalRepTimeMs / 1000).toStringAsFixed(1)}s'),
           ],
         ),
@@ -71,14 +71,14 @@ class RepSummaryCard extends StatelessWidget {
             spacing: 16,
             runSpacing: 8,
             children: [
-              _Pill(label: 'Peak Accel',
+              _Pill(label: '峰值加速度',
                   value: '${rep.peakAcceleration.toStringAsFixed(2)} m/s²'),
-              _Pill(label: 'Concentric',
+              _Pill(label: '向心',
                   value: '${(rep.concentricTimeMs / 1000).toStringAsFixed(2)}s'),
-              _Pill(label: 'Eccentric',
+              _Pill(label: '离心',
                   value: '${(rep.eccentricTimeMs / 1000).toStringAsFixed(2)}s'),
               if (rep.estimatedOneRm > 0)
-                _Pill(label: 'Est. 1RM',
+                _Pill(label: '预估 1RM',
                     value: '${rep.estimatedOneRm.toStringAsFixed(1)} kg'),
             ],
           ),
