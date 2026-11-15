@@ -166,7 +166,7 @@ class SessionNotifier extends ChangeNotifier {
     } catch (e) {
       _state = _state.copyWith(
         status: SessionStatus.error,
-        error: e.toString(),
+        error: e.toString().replaceFirst('Exception: ', ''),
       );
       notifyListeners();
     }
@@ -227,7 +227,7 @@ class SessionNotifier extends ChangeNotifier {
     _frameSub = _camera.frameStream.listen(_onFrame,
         onError: (e) => _state = _state.copyWith(
               status: SessionStatus.error,
-              error: e.toString(),
+              error: e.toString().replaceFirst('Exception: ', ''),
             ));
 
     notifyListeners();
